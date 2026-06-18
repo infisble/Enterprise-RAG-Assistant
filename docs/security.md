@@ -17,6 +17,8 @@ and rotated if exposed.
 
 Authorization is enforced in the repository layer. The RAG flow intentionally
 checks every Qdrant candidate against Postgres before it becomes prompt context.
+Keyword search uses the same visibility query, so hybrid retrieval does not
+bypass RBAC.
 
 Visibility rules:
 
@@ -32,3 +34,10 @@ Visibility rules:
 - Add audit logs before handling regulated data.
 - Add virus scanning and file-size limits before accepting untrusted uploads at
   scale.
+
+## Hallucination Guard
+
+The LLM prompt forbids outside knowledge and requires inline citations. The
+backend also performs retrieval-grounding checks before and after generation. If
+the retrieved chunks do not support the question, the response is the fixed
+fallback: `I don't know based on provided documents.`

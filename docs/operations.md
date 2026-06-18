@@ -43,3 +43,13 @@ models.
 - Add per-tenant Qdrant collections or payload filters for multi-tenant SaaS.
 - Add observability around upload duration, embedding latency, retrieval hit rate,
   and answer latency.
+
+## Monitoring
+
+The backend writes structured JSON logs. `llm_requests` records prompt/response
+payloads, token usage, estimated cost, latency, provider, success/fail status,
+and error text. `audit_logs` records user, document, and chat actions with the
+current request id.
+
+Dashboard metrics are exposed through `/api/admin/metrics` for managers and
+admins.

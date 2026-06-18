@@ -47,7 +47,12 @@ Fields:
 ```json
 {
   "question": "What is the vacation policy?",
-  "top_k": 5
+  "top_k": 5,
+  "session_id": 12,
+  "metadata_filter": {
+    "visibility": "team",
+    "team_id": 1
+  }
 }
 ```
 
@@ -55,8 +60,13 @@ Returns:
 
 ```json
 {
+  "session_id": 12,
+  "message_id": 44,
   "answer": "string",
   "provider": "mock",
+  "grounded": true,
+  "latency_ms": 120,
+  "estimated_cost_usd": 0.0,
   "citations": [
     {
       "document_id": 1,
@@ -64,8 +74,25 @@ Returns:
       "chunk_id": 10,
       "chunk_index": 0,
       "score": 0.91,
+      "vector_score": 0.88,
+      "keyword_score": 1.0,
       "text": "source text"
     }
   ]
 }
 ```
+
+`GET /chat/history`
+: Returns the current user's chat sessions, messages, latency, and citations.
+
+## Admin
+
+`GET /admin/metrics`
+: Manager/admin dashboard metrics: documents, chunks, queries, average latency,
+estimated cost, top questions, and failed answers.
+
+`GET /admin/llm-requests`
+: Manager/admin prompt-response observability records with token and cost data.
+
+`GET /admin/audit-logs`
+: Manager/admin audit events for uploads, user updates, and chat calls.

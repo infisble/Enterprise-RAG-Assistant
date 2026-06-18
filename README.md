@@ -18,9 +18,13 @@ database access lives in repositories, and configuration is environment-driven.
 - PDF, DOCX, and TXT ingestion.
 - Text chunking with overlap and deterministic fallback embeddings.
 - `/api/chat` endpoint returning an answer and citations.
+- Hybrid retrieval with vector search, keyword search, metadata filtering, and reranking.
+- Grounding guard and fixed fallback: `I don't know based on provided documents.`
+- Conversation memory and persisted chat history.
 - JWT authentication with `admin`, `manager`, and `employee` roles.
 - Document visibility: `private`, `team`, and `public`.
-- React/Vite frontend for login, upload, document browsing, and chat.
+- React/Vite admin console for login, dashboard, documents, upload, chat, history, users, logs, and metrics.
+- Structured logs, request ids, latency tracking, token usage, cost tracking, prompt/response logs, and audit logs.
 - Docker Compose for the full local stack.
 
 ## Architecture
@@ -63,7 +67,8 @@ sequenceDiagram
   User->>UI: Ask question
   UI->>API: POST /api/chat
   API->>Q: Vector search
-  API->>PG: Filter chunks by RBAC and visibility
+  API->>PG: Keyword search and RBAC filtering
+  API->>API: Rerank and grounding guard
   API->>LLM: Answer from retrieved context
   API-->>UI: Answer with citations
 ```
@@ -152,7 +157,10 @@ Content-Type: application/json
 
 {
   "question": "What is the vacation policy?",
-  "top_k": 5
+  "top_k": 5,
+  "metadata_filter": {
+    "visibility": "team"
+  }
 }
 ```
 
@@ -160,8 +168,13 @@ Response:
 
 ```json
 {
+  "session_id": 1,
+  "message_id": 2,
   "answer": "Employees can request vacation according to the policy [1].",
   "provider": "openai",
+  "grounded": true,
+  "latency_ms": 420,
+  "estimated_cost_usd": 0.0001,
   "citations": [
     {
       "document_id": 1,
@@ -173,6 +186,12 @@ Response:
     }
   ]
 }
+```
+
+If the accessible documents do not support the question, the API returns:
+
+```text
+I don't know based on provided documents.
 ```
 
 ## Visibility Model
