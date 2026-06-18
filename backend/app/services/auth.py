@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 from app.core.security import create_access_token, hash_password, verify_password
 from app.db.models import User, UserRole
 from app.repositories.users import UserRepository
+from app.repositories.observability import ObservabilityRepository
+from app.core.request_context import get_request_id
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse, UserRead, UserUpdateRequest
 
 
@@ -12,6 +14,7 @@ class AuthService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.users = UserRepository(db)
+        self.observability = ObservabilityRepository(db)
 
     def register(self, payload: RegisterRequest) -> UserRead:
         if self.users.get_by_email(payload.email):
@@ -53,6 +56,15 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Unknown role")
         team = self.users.get_or_create_team(payload.team_name) if payload.team_name else None
         updated = self.users.update_role_team(user, role=role, team=team)
+        self.observability.audit(
+            request_id=get_request_id(),
+            user_id=updated.id,
+            action="user.update",
+            resource_type="user",
+            resource_id=str(updated.id),
+            status="success",
+            metadata_json=f'{{"role":"{updated.role}","team_id":{updated.team_id or "null"}}}',
+        )
         self.db.commit()
         return self._read_user(updated)
 

@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models import DocumentVisibility, User, UserRole
 from app.repositories.documents import DocumentRepository
+from app.repositories.observability import ObservabilityRepository
+from app.core.request_context import get_request_id
 from app.schemas.documents import DocumentUploadForm, DocumentUploadResponse
 from app.services.chunking import TextChunker
 from app.services.embeddings import EmbeddingService
@@ -18,6 +20,7 @@ class DocumentService:
     def __init__(self, db: Session) -> None:
         self.db = db
         self.documents = DocumentRepository(db)
+        self.observability = ObservabilityRepository(db)
         self.parser = DocumentParser()
         self.chunker = TextChunker(settings.chunk_size, settings.chunk_overlap)
         self.embeddings = EmbeddingService()
@@ -71,6 +74,15 @@ class DocumentService:
 
         self.vector_store.upsert(points)
         self.documents.update_chunk_count(document, len(chunks))
+        self.observability.audit(
+            request_id=get_request_id(),
+            user_id=user.id,
+            action="document.upload",
+            resource_type="document",
+            resource_id=str(document.id),
+            status="success",
+            metadata_json=f'{{"visibility":"{document.visibility}","chunks":{len(chunks)}}}',
+        )
         self.db.commit()
         self.db.refresh(document)
         return DocumentUploadResponse(document=document, chunks_indexed=len(chunks))
