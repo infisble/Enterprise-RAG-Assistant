@@ -1,0 +1,3 @@
+HR vacation policy: employees may request paid vacation after manager approval.
+Requests should be submitted at least two weeks before the planned absence.
+Finance documents are visible only to the Finance team unless marked public.
