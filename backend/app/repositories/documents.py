@@ -64,6 +64,27 @@ class DocumentRepository:
     def list_visible(self, user: User) -> list[Document]:
         return list(self.db.scalars(self.visible_documents_query(user).order_by(Document.created_at.desc())))
 
+    def visible_chunks_query(self, user: User):
+        query = select(DocumentChunk).join(Document).options(joinedload(DocumentChunk.document))
+        if user.role != UserRole.admin.value:
+            query = query.where(
+                or_(
+                    Document.visibility == DocumentVisibility.public.value,
+                    Document.owner_id == user.id,
+                    (Document.visibility == DocumentVisibility.team.value) & (Document.team_id == user.team_id),
+                )
+            )
+        return query
+
+    def keyword_search(self, *, question: str, user: User, limit: int, metadata_filter: dict | None = None) -> list[DocumentChunk]:
+        terms = [term.strip().lower() for term in question.split() if len(term.strip()) > 2]
+        query = self.visible_chunks_query(user)
+        if metadata_filter:
+            query = self._apply_metadata_filter(query, metadata_filter)
+        if terms:
+            query = query.where(or_(*[DocumentChunk.text.ilike(f"%{term}%") for term in terms[:8]]))
+        return list(self.db.scalars(query.limit(limit)))
+
     def get_visible_chunk(self, *, chunk_id: int, user: User) -> DocumentChunk | None:
         query = (
             select(DocumentChunk)
@@ -80,3 +101,12 @@ class DocumentRepository:
                 )
             )
         return self.db.scalar(query)
+
+    def _apply_metadata_filter(self, query, metadata_filter: dict):
+        if "visibility" in metadata_filter:
+            query = query.where(Document.visibility == str(metadata_filter["visibility"]))
+        if "team_id" in metadata_filter:
+            query = query.where(Document.team_id == int(metadata_filter["team_id"]))
+        if "document_id" in metadata_filter:
+            query = query.where(Document.id == int(metadata_filter["document_id"]))
+        return query
