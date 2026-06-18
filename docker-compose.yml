@@ -1,0 +1,70 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rag}
+      POSTGRES_USER: ${POSTGRES_USER:-rag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rag}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rag} -d ${POSTGRES_DB:-rag}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:v1.11.3
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    environment:
+      RAG_API_SECRET_KEY: ${RAG_API_SECRET_KEY:-change-me-in-production}
+      RAG_CORS_ORIGINS: ${RAG_CORS_ORIGINS:-http://localhost:5173}
+      RAG_DATABASE_URL: ${RAG_DATABASE_URL:-postgresql+psycopg2://rag:rag@postgres:5432/rag}
+      RAG_QDRANT_URL: ${RAG_QDRANT_URL:-http://qdrant:6333}
+      RAG_QDRANT_COLLECTION: ${RAG_QDRANT_COLLECTION:-enterprise_documents}
+      RAG_LLM_PROVIDER: ${RAG_LLM_PROVIDER:-mock}
+      RAG_EMBEDDING_DIM: ${RAG_EMBEDDING_DIM:-384}
+      RAG_OPENAI_CHAT_MODEL: ${RAG_OPENAI_CHAT_MODEL:-gpt-4o-mini}
+      RAG_OPENAI_EMBEDDING_MODEL: ${RAG_OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      RAG_GEMINI_MODEL: ${RAG_GEMINI_MODEL:-gemini-2.5-flash}
+      RAG_GEMINI_EMBEDDING_MODEL: ${RAG_GEMINI_EMBEDDING_MODEL:-embedding-001}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  postgres-data:
+  qdrant-data:
